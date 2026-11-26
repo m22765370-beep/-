@@ -1,0 +1,46 @@
+
+name: Build RunnerCraft APK
+
+on:
+  push:
+    paths:
+      - '*.zip'
+      - '.github/workflows/build-from-zip.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          mkdir extracted
+          ZIP=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
+          unzip -q "$ZIP" -d extracted
+          PROJECT=$(find extracted -name settings.gradle -printf '%h\n' | head -n 1)
+          echo "PROJECT=$PROJECT" >> $GITHUB_ENV
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Download Three.js
+        run: |
+          mkdir -p "$PROJECT/app/src/main/assets/www"
+          curl -fL -o "$PROJECT/app/src/main/assets/www/three.min.js" https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
+
+      - name: Build APK
+        run: gradle -p "$PROJECT" assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RunnerCraft-APK
+          path: extracted/**/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
